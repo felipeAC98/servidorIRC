@@ -3,7 +3,8 @@ import asyncio
 from tcp import Servidor
 import re
 
-
+mensagemRecebida=b''
+ 
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
 
@@ -14,15 +15,63 @@ def sair(conexao):
 
 
 def dados_recebidos(conexao, dados):
-    if dados == b'':
-        return sair(conexao)
-    print(conexao, dados)
 
+	global mensagemRecebida
+
+	if dados == b'':
+
+		return sair(conexao)
+
+	mensagemRecebida=mensagemRecebida+dados
+
+	if b'\r\n' in mensagemRecebida:
+		trataMsg(mensagemRecebida,conexao)
+
+def trataMsg(dados, conexao):
+
+	global mensagemRecebida
+
+	#a mensagem sera reconstruida com somente oq falta
+	mensagemRecebida=b''
+
+	nMsgCompletas=len(re.split(b'(\r\n)',dados)) - len(dados.split(b'\r\n'))
+
+	contadorMsgCompleta=0
+
+	for msg in dados.split(b'\r\n'):
+
+		if contadorMsgCompleta<nMsgCompletas:
+
+			contadorMsgCompleta=contadorMsgCompleta+1
+
+			if msg == b'':
+
+				return sair(conexao)
+
+			if msg.startswith(b'PING'):
+
+				mensagemAEnviar=b''.join([b':server PONG server :',msg.split(b' ',1)[1] ,b'\r\n'])
+
+				print("enviando mensagem:" +str(mensagemAEnviar))
+
+				conexao.enviar(mensagemAEnviar)
+
+		else:
+
+			#nao pegando o ultimo split que vai estar vazio
+			if msg != b'':
+
+				print(" Concatenando mensagem")
+				mensagemRecebida=mensagemRecebida+(msg)
+
+			#o ultimo split eh vazio
+			else:
+				print(" Apagando buffer de mensagens...")
+				mensagemRecebida=b''
 
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
     conexao.registrar_recebedor(dados_recebidos)
-
 
 servidor = Servidor(6667)
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)

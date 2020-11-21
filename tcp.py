@@ -3,9 +3,9 @@ import asyncio
 
 class Servidor:
     def __init__(self, porta):
-        s = self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s = self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #AFINET esta setando o protocolo TCP
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('', porta))
+        s.bind(('', porta)) #string vazia para disponibilizar para todas interfaces
         s.listen(5)
 
     def registrar_monitor_de_conexoes_aceitas(self, callback):
