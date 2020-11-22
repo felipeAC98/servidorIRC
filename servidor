@@ -4,14 +4,27 @@ from tcp import Servidor
 import re
 
 mensagemRecebida=b''
- 
+
+#sera criado um dict global a partir desta variavel
+conexaoDict=''
+
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
 
 
 def sair(conexao):
-    print(conexao, 'conexão fechada')
-    conexao.fechar()
+
+	global conexaoDict
+
+	conexaoID=str(conexao).split(' ')
+
+	conexaoID=conexaoID[3].replace('>','')
+
+	conexaoDict.pop(conexaoID)
+
+	print(conexao, 'conexão fechada')
+
+	conexao.fechar()
 
 
 def dados_recebidos(conexao, dados):
@@ -22,23 +35,33 @@ def dados_recebidos(conexao, dados):
 
 		return sair(conexao)
 
+	print(dados)
+
 	mensagemRecebida=mensagemRecebida+dados
 
-	if b'\r\n' in mensagemRecebida:
+	if b'\n' in mensagemRecebida:
 		trataMsg(mensagemRecebida,conexao)
 
 def trataMsg(dados, conexao):
 
 	global mensagemRecebida
 
+	global conexaoDict
+
+	conexaoID=str(conexao).split(' ')
+
+	conexaoID=conexaoID[3].replace('>','')
+
+	_conecaoJaAberta, apelidoAnterior= conecaoJaAberta(conexaoID)
+
 	#a mensagem sera reconstruida com somente oq falta
 	mensagemRecebida=b''
 
-	nMsgCompletas=len(re.split(b'(\r\n)',dados)) - len(dados.split(b'\r\n'))
+	nMsgCompletas=len(re.split(b'(\n)',dados)) - len(dados.split(b'\n'))
 
 	contadorMsgCompleta=0
 
-	for msg in dados.split(b'\r\n'):
+	for msg in dados.split(b'\n'):
 
 		if contadorMsgCompleta<nMsgCompletas:
 
@@ -50,11 +73,77 @@ def trataMsg(dados, conexao):
 
 			if msg.startswith(b'PING'):
 
-				mensagemAEnviar=b''.join([b':server PONG server :',msg.split(b' ',1)[1] ,b'\r\n'])
+				mensagemAEnviar=b''.join([b':server PONG server :',msg.split(b' ',1)[1] ,b'\n'])
 
 				print("enviando mensagem:" +str(mensagemAEnviar))
 
 				conexao.enviar(mensagemAEnviar)
+
+			if msg.startswith(b'NICK'):
+
+				apelido=str(msg.split(b' ',1)[1].decode()).replace('\r','').encode()
+
+				print("apelido:" +str(apelido))
+
+				nickValido=(validar_nome(apelido))
+
+				_nickDisponivel =nickDisponivel(apelido.decode())
+
+				if nickValido and _nickDisponivel:
+
+					#inserindo no dict
+					if conexaoDict=='':
+						conexaoDict={conexaoID:apelido.decode()}
+						print("criando outro dict...")
+
+					else:
+						conexaoDict[conexaoID]=apelido.decode()
+
+					print(conexaoDict)
+
+					#conexao nao foi aberta ainda para este usuario
+					if _conecaoJaAberta==False:
+
+						mensagemAEnviar=b':server 001 %s :Welcome\r\n' %apelido
+
+						print(mensagemAEnviar)
+						conexao.enviar(mensagemAEnviar)
+
+						mensagemAEnviar=b':server 422 %s :MOTD File is missing\r\n' %apelido
+
+						print(mensagemAEnviar)
+						conexao.enviar(mensagemAEnviar)
+
+					#conexao ja foi aberta para este usuario
+					else:
+
+						mensagemAEnviar=b':%s NICK %s\r\n' %(apelidoAnterior.encode(), apelido)
+
+						print(mensagemAEnviar)
+						conexao.enviar(mensagemAEnviar)
+
+				else:
+
+					#o nick nao esta disponivel
+					if _nickDisponivel==False:
+
+						#usuario tentou criar sua conexao com um nick que ja estava em uso
+						if _conecaoJaAberta==False:
+
+							mensagemAEnviar=b':server 433 * %s :Nickname is already in use\r\n' %apelido
+
+						#usuario tentou alterar seu nick com um que ja estava em uso
+						else:
+
+							mensagemAEnviar=b':server 433 %s %s :Nickname is already in use\r\n' %(apelidoAnterior.encode(), apelido)
+
+					#usuario inseriu um nick invalido
+					else:
+
+						mensagemAEnviar=b':server 432 * %s :Erroneous nickname\r\n' %apelido
+
+					print(mensagemAEnviar)
+					conexao.enviar(mensagemAEnviar)
 
 		else:
 
@@ -68,6 +157,38 @@ def trataMsg(dados, conexao):
 			else:
 				print(" Apagando buffer de mensagens...")
 				mensagemRecebida=b''
+
+def nickDisponivel(apelido):
+
+	global conexaoDict
+
+	print("Verificando apelidos")
+
+	if conexaoDict=='':
+		return True
+
+	for  conexao, cnApelido in conexaoDict.items():
+
+		if str(cnApelido).upper() == str(apelido).upper():
+
+			print("Este apelido ja esta sendo usado")
+			return False
+
+	return True
+
+def conecaoJaAberta(conexao):
+
+	global conexaoDict
+
+	if conexaoDict=='':
+		return False, ''
+
+	for  conexaoAberta, cnApelido in conexaoDict.items():
+
+		if conexao==conexaoAberta:
+			return True, cnApelido
+
+	return False, ''
 
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
