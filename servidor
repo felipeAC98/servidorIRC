@@ -16,11 +16,8 @@ def sair(conexao):
 
 	global conexaoDict
 
-	conexaoID=str(conexao).split(' ')
-
-	conexaoID=conexaoID[3].replace('>','')
-
-	conexaoDict.pop(conexaoID)
+	if conexaoDict!='':
+		conexaoDict.pop(conexao)
 
 	print(conexao, 'conexão fechada')
 
@@ -34,8 +31,6 @@ def dados_recebidos(conexao, dados):
 	if dados == b'':
 
 		return sair(conexao)
-
-	print(dados)
 
 	mensagemRecebida=mensagemRecebida+dados
 
@@ -52,7 +47,7 @@ def trataMsg(dados, conexao):
 
 	conexaoID=conexaoID[3].replace('>','')
 
-	_conecaoJaAberta, apelidoAnterior= conecaoJaAberta(conexaoID)
+	_conecaoJaAberta, meuApelido= conecaoJaAberta(conexao)
 
 	#a mensagem sera reconstruida com somente oq falta
 	mensagemRecebida=b''
@@ -79,6 +74,27 @@ def trataMsg(dados, conexao):
 
 				conexao.enviar(mensagemAEnviar)
 
+
+			if msg.startswith(b'PRIVMSG'):
+
+				destinatario=msg.split(b' ')[1].decode().replace('\r','').encode()
+
+				print(msg.split(b' ',2))
+
+				mensagemParaDestinatario=msg.split(b' ',2)[2]
+
+				mensagemParaDestinatario=mensagemParaDestinatario.decode().replace('\r','').replace(':','').encode()
+
+				conexaoDestinataria=conexaoDesteApelido(destinatario.decode())
+
+				mensagemAEnviar=b':%s PRIVMSG %s :%s\r\n' %(meuApelido.encode(), destinatario ,mensagemParaDestinatario)
+
+				print("mensagemParaDestinatario: "+ str(mensagemAEnviar))
+
+				if conexaoDestinataria != None:
+					conexaoDestinataria.enviar(mensagemAEnviar)
+
+
 			if msg.startswith(b'NICK'):
 
 				apelido=str(msg.split(b' ',1)[1].decode()).replace('\r','').encode()
@@ -93,11 +109,11 @@ def trataMsg(dados, conexao):
 
 					#inserindo no dict
 					if conexaoDict=='':
-						conexaoDict={conexaoID:apelido.decode()}
+						conexaoDict={conexao:apelido.decode()}
 						print("criando outro dict...")
 
 					else:
-						conexaoDict[conexaoID]=apelido.decode()
+						conexaoDict[conexao]=apelido.decode()
 
 					print(conexaoDict)
 
@@ -117,7 +133,7 @@ def trataMsg(dados, conexao):
 					#conexao ja foi aberta para este usuario
 					else:
 
-						mensagemAEnviar=b':%s NICK %s\r\n' %(apelidoAnterior.encode(), apelido)
+						mensagemAEnviar=b':%s NICK %s\r\n' %(meuApelido.encode(), apelido)
 
 						print(mensagemAEnviar)
 						conexao.enviar(mensagemAEnviar)
@@ -135,7 +151,7 @@ def trataMsg(dados, conexao):
 						#usuario tentou alterar seu nick com um que ja estava em uso
 						else:
 
-							mensagemAEnviar=b':server 433 %s %s :Nickname is already in use\r\n' %(apelidoAnterior.encode(), apelido)
+							mensagemAEnviar=b':server 433 %s %s :Nickname is already in use\r\n' %(meuApelido.encode(), apelido)
 
 					#usuario inseriu um nick invalido
 					else:
@@ -158,6 +174,7 @@ def trataMsg(dados, conexao):
 				print(" Apagando buffer de mensagens...")
 				mensagemRecebida=b''
 
+
 def nickDisponivel(apelido):
 
 	global conexaoDict
@@ -176,6 +193,19 @@ def nickDisponivel(apelido):
 
 	return True
 
+def conexaoDesteApelido(apelido):
+
+	global conexaoDict
+
+	for  conexao, cnApelido in conexaoDict.items():
+
+		if str(cnApelido).upper() == str(apelido).upper():
+
+			print("Conexao localizada")
+			return conexao
+
+	return None
+
 def conecaoJaAberta(conexao):
 
 	global conexaoDict
@@ -183,12 +213,13 @@ def conecaoJaAberta(conexao):
 	if conexaoDict=='':
 		return False, ''
 
-	for  conexaoAberta, cnApelido in conexaoDict.items():
+	for conexaoAberta,cnApelido in conexaoDict.items():
 
 		if conexao==conexaoAberta:
 			return True, cnApelido
 
 	return False, ''
+
 
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
