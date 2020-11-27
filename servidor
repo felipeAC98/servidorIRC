@@ -221,6 +221,28 @@ def trataMsg(dados, conexao):
 
 				conexao.enviar(mensagemAEnviar)
 
+			if msg.startswith(b'PART'):
+
+				nomeCanal=str(msg.split(b' ',2)[1].decode()).replace('\r','')
+
+				usuariosCanal=procuraCanal(nomeCanal)
+
+				for _destinatario in usuariosCanal:
+
+					mensagemAEnviar=b':%s PART %s\r\n' % (meuApelido.encode(), nomeCanal.encode())
+
+					conexaoDestinataria=conexaoDesteApelido(_destinatario)
+
+					if conexaoDestinataria != None:
+						print("mensagemParaDestinatario: "+ str(mensagemAEnviar))
+
+						conexaoDestinataria.enviar(mensagemAEnviar)
+
+				usuariosCanal.remove(meuApelido)
+
+				canaisDict[nomeCanal.upper()]=usuariosCanal
+
+				print("Canais em aberto:" +str(canaisDict))
 
 		else:
 
@@ -284,6 +306,9 @@ def conecaoJaAberta(conexao):
 def procuraCanal(nomeCanal):
 
 	global canaisDict
+
+	if canaisDict=='':
+		return None
 
 	for canal, usuarios in canaisDict.items():
 
