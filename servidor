@@ -8,6 +8,8 @@ mensagemRecebida=b''
 #sera criado um dict global a partir desta variavel
 conexaoDict=''
 
+canaisDict=''
+
 def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
 
@@ -43,6 +45,8 @@ def trataMsg(dados, conexao):
 
 	global conexaoDict
 
+	global canaisDict
+
 	conexaoID=str(conexao).split(' ')
 
 	conexaoID=conexaoID[3].replace('>','')
@@ -77,7 +81,7 @@ def trataMsg(dados, conexao):
 
 			if msg.startswith(b'PRIVMSG'):
 
-				destinatario=msg.split(b' ')[1].decode().replace('\r','').encode()
+				destinatario=msg.split(b' ')[1].decode().replace('\r','')
 
 				print(msg.split(b' ',2))
 
@@ -85,14 +89,29 @@ def trataMsg(dados, conexao):
 
 				mensagemParaDestinatario=mensagemParaDestinatario.decode().replace('\r','').replace(':','').encode()
 
-				conexaoDestinataria=conexaoDesteApelido(destinatario.decode())
+				destList=[]
 
-				mensagemAEnviar=b':%s PRIVMSG %s :%s\r\n' %(meuApelido.encode(), destinatario ,mensagemParaDestinatario)
+				if destinatario[0] ==  '#':
 
-				print("mensagemParaDestinatario: "+ str(mensagemAEnviar))
+					print(destinatario)
 
-				if conexaoDestinataria != None:
-					conexaoDestinataria.enviar(mensagemAEnviar)
+					destList=procuraCanal(destinatario)
+
+				else:
+
+					destList.append(destinatario)
+
+				print("destList "+str(destList))
+
+				for _destinatario in destList:
+
+					mensagemAEnviar=b':%s PRIVMSG %s :%s\r\n' %(meuApelido.encode(), destinatario.encode() ,mensagemParaDestinatario)
+					conexaoDestinataria=conexaoDesteApelido(_destinatario)
+
+					if conexaoDestinataria != None and _destinatario!=meuApelido:
+						print("mensagemParaDestinatario: "+ str(mensagemAEnviar))
+
+						conexaoDestinataria.enviar(mensagemAEnviar)
 
 
 			if msg.startswith(b'NICK'):
@@ -161,6 +180,48 @@ def trataMsg(dados, conexao):
 					print(mensagemAEnviar)
 					conexao.enviar(mensagemAEnviar)
 
+			if msg.startswith(b'JOIN'):
+
+				nomeCanal=str(msg.split(b' ',1)[1].decode()).replace('\r','')
+
+				#nao foi criado nenhum canal ainda
+				if canaisDict == '':
+
+					print("criando dicionario de canais")
+					usuariosCanal=[]
+
+					usuariosCanal.append(meuApelido)
+
+					canaisDict={nomeCanal.upper():usuariosCanal}
+
+				else:
+
+					usuariosCanal=procuraCanal(nomeCanal)
+
+					#caso nao ache o canal, cria um novo
+					if usuariosCanal == None:
+
+						usuariosCanal=[]
+
+						usuariosCanal.append(meuApelido)
+						
+						canaisDict[nomeCanal.upper()]=usuariosCanal
+
+					else:
+
+						usuariosCanal.append(meuApelido)
+
+						canaisDict[nomeCanal.upper()]=usuariosCanal
+
+				print("Canais em aberto:" +str(canaisDict))
+				
+				mensagemAEnviar=b':%s JOIN :%s\r\n' % (meuApelido.encode(), nomeCanal.encode())
+
+				print(mensagemAEnviar)
+
+				conexao.enviar(mensagemAEnviar)
+
+
 		else:
 
 			#nao pegando o ultimo split que vai estar vazio
@@ -219,6 +280,19 @@ def conecaoJaAberta(conexao):
 			return True, cnApelido
 
 	return False, ''
+
+def procuraCanal(nomeCanal):
+
+	global canaisDict
+
+	for canal, usuarios in canaisDict.items():
+
+		if str(canal).upper() == str(nomeCanal).upper():
+
+			print("Usuarios: "+str(usuarios))
+			return usuarios
+
+	return None	
 
 
 def conexao_aceita(conexao):
