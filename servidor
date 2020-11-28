@@ -19,7 +19,12 @@ def sair(conexao):
 	global conexaoDict
 
 	if conexaoDict!='':
-		conexaoDict.pop(conexao)
+
+		avisaCanais(conexao)
+
+		if conexao in conexaoDict:
+
+			conexaoDict.pop(conexao)
 
 	print(conexao, 'conexão fechada')
 
@@ -215,7 +220,28 @@ def trataMsg(dados, conexao):
 
 				print("Canais em aberto:" +str(canaisDict))
 				
-				mensagemAEnviar=b':%s JOIN :%s\r\n' % (meuApelido.encode(), nomeCanal.encode())
+				for _destinatario in usuariosCanal:
+
+					mensagemAEnviar=b':%s JOIN :%s\r\n' % (meuApelido.encode(), nomeCanal.encode())
+
+					conexaoDestinataria=conexaoDesteApelido(_destinatario)
+
+					print(mensagemAEnviar)
+
+					conexaoDestinataria.enviar(mensagemAEnviar)
+
+				usuariosCanalEncod=[]
+
+				for usuario in usuariosCanal:
+					usuariosCanalEncod.append(usuario.encode())
+
+				mensagemAEnviar=b':server 353 %s = %s :%s\n' % (meuApelido.encode(), nomeCanal.encode(),b' '.join(sorted(usuariosCanalEncod)))
+
+				print(mensagemAEnviar)
+
+				conexao.enviar(mensagemAEnviar)
+
+				mensagemAEnviar=b':server 366 %s %s :End of /NAMES list.\r\n' % (meuApelido.encode(), nomeCanal.encode())
 
 				print(mensagemAEnviar)
 
@@ -256,6 +282,53 @@ def trataMsg(dados, conexao):
 			else:
 				print(" Apagando buffer de mensagens...")
 				mensagemRecebida=b''
+
+def avisaCanais(conexao):
+
+	_conecaoJaAberta, meuApelido= conecaoJaAberta(conexao)
+
+	canaisQueParticipo=canaisDoUsuario(meuApelido)
+
+	if canaisQueParticipo==None:
+		return
+
+	for nomeCanal in canaisQueParticipo:
+
+		usuariosCanal=procuraCanal(nomeCanal)
+
+		usuariosCanal.remove(meuApelido)
+
+		canaisDict[nomeCanal.upper()]=usuariosCanal
+
+		for _destinatario in usuariosCanal:
+
+			mensagemAEnviar=b':%s QUIT\r\n' % (meuApelido.encode())
+
+			conexaoDestinataria=conexaoDesteApelido(_destinatario)
+
+			if conexaoDestinataria != None:
+				print("mensagemParaDestinatario: "+ str(mensagemAEnviar))
+
+				conexaoDestinataria.enviar(mensagemAEnviar)
+
+def canaisDoUsuario(meuApelido):
+
+	global canaisDict
+
+	if canaisDict=='':
+		return None
+
+	canaisQueParticipo=[]
+
+	for canal, usuarios in canaisDict.items():
+
+		for usuario in usuarios:
+
+			if str(meuApelido).upper() == str(usuario).upper():
+
+				canaisQueParticipo.append(canal)
+
+	return canaisQueParticipo	
 
 
 def nickDisponivel(apelido):
